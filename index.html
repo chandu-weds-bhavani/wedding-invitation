@@ -1355,34 +1355,33 @@
         movie: "Pushpaka Vimanam",
         teluguTitle: "కళ్యాణం కళ్యాణం",
         artist: "Sid Sriram & Ram Miriyala",
-        src: "mp3/%23Kalyanam%20Lyrical%20Song%20Pushpaka%20Vimanam%20Songs%20AnandDeverakonda%20GeethSaini%20SidSriram%20RamMiriyala.mp3"
+        src: "mp3/kalyanam.mp3"
       },
       {
         title: "Jaya Mangalam",
         movie: "Lenin",
         teluguTitle: "జయ మంగళం",
         artist: "Akhil Akkineni • Thaman S",
-        src: "mp3/Full%20Video%20Jaya%20Mangalam%20Lenin%20Akhil%20Akkineni%20Bhagyashri%20Borse%20Thaman%20S%20Murali%20Kishor%20A.mp3"
+        src: "mp3/jaya-mangalam.mp3"
       },
       {
         title: "Kalyanam Vybhogam",
         movie: "Srinivasa Kalyanam",
         teluguTitle: "కళ్యాణ వైభోగమే",
         artist: "Nithiin • Raashi Khanna",
-        src: "mp3/Kalyanam%20Vybhogam%20Lyrical%20Srinivasa%20Kalyanam%20Songs%20Nithiin%2C%20Raashi%20Khanna.mp3"
+        src: "mp3/kalyanam-vybhogam.mp3"
       },
       {
         title: "Seetha Kalyanam",
         movie: "Ranarangam",
         teluguTitle: "సీతా కళ్యాణం వైభోగమే",
         artist: "Sharwanand • Kalyani Priyadarshan",
-        src: "mp3/Seetha%20Kalyanam%20Lyrical%20_%20Ranarangam%20Songs%20_%20Sharwanand%2C%20Kalyani%20Priyadarshan%20_%20Sudheer%20Varma.mp3"
+        src: "mp3/seetha-kalyanam.mp3"
       }
     ];
 
     let currentSongIndex = -1;
     let weddingAudio = null;
-    let toastTimeout = null;
 
     function getRandomSongIndex(excludeIndex = -1) {
       let newIdx;
@@ -1392,8 +1391,6 @@
       return newIdx;
     }
 
-    
-
     function updateEqualizerUI(isPlaying) {
       const btn = document.getElementById('music-player-btn');
       const icon = document.getElementById('music-btn-icon');
@@ -1401,11 +1398,13 @@
 
       if (btn) {
         if (isPlaying) {
-          btn.classList.add('bg-secondary-fixed');
+          btn.classList.add('bg-secondary-fixed', 'ring-2', 'ring-[#d4af37]/60');
           if (icon) icon.textContent = 'music_note';
+          btn.title = "Music Playing (Tap to Pause)";
         } else {
-          btn.classList.remove('bg-secondary-fixed');
+          btn.classList.remove('bg-secondary-fixed', 'ring-2', 'ring-[#d4af37]/60');
           if (icon) icon.textContent = 'music_off';
+          btn.title = "Music Paused (Tap to Play)";
         }
       }
 
@@ -1422,52 +1421,99 @@
       });
     }
 
-    window.playWeddingSongByIndex = function(index) {
+    function showMusicNotification(song) {
+      const isTe = (typeof currentLang !== 'undefined' && currentLang === 'te');
+      const text = isTe 
+        ? `🎶 సంగీతం: ${song.teluguTitle} (${song.movie})`
+        : `🎶 Playing: ${song.title} (${song.movie})`;
+      
+      if (window.showShareToast) {
+        window.showShareToast(text);
+      }
+    }
+
+    function initAudioEngine() {
       if (!weddingAudio) {
         weddingAudio = new Audio();
-        weddingAudio.volume = 0.8;
+        weddingAudio.preload = 'auto';
+        weddingAudio.volume = 0.85;
 
-        // When a song finishes, automatically pick another random song!
+        // When a song finishes, automatically transition to next song seamlessly
         weddingAudio.addEventListener('ended', () => {
-          console.log("Song ended. Playing next random wedding song...");
-          const nextIdx = getRandomSongIndex(currentSongIndex);
+          console.log("Song ended. Playing next wedding song...");
+          const nextIdx = (currentSongIndex + 1) % WEDDING_PLAYLIST.length;
           window.playWeddingSongByIndex(nextIdx);
+        });
+
+        // Error recovery: If an audio file fails, try the next song
+        weddingAudio.addEventListener('error', (e) => {
+          console.warn("Audio file playback issue, skipping to next:", e);
+          const nextIdx = (currentSongIndex + 1) % WEDDING_PLAYLIST.length;
+          if (nextIdx !== currentSongIndex) {
+            window.playWeddingSongByIndex(nextIdx);
+          }
         });
 
         weddingAudio.addEventListener('play', () => updateEqualizerUI(true));
         weddingAudio.addEventListener('pause', () => updateEqualizerUI(false));
       }
+      return weddingAudio;
+    }
 
-      currentSongIndex = index;
-      const song = WEDDING_PLAYLIST[index];
-      weddingAudio.src = song.src;
+    window.playWeddingSongByIndex = function(index) {
+      const audio = initAudioEngine();
+      if (!audio) return;
 
-      weddingAudio.play().then(() => {
-        console.log("Playing randomly selected song:", song.title);
-        updateEqualizerUI(true);
-        
-      }).catch(err => {
-        console.log("Audio playback notice:", err);
-      });
+      currentSongIndex = (index >= 0 && index < WEDDING_PLAYLIST.length) ? index : 0;
+      const song = WEDDING_PLAYLIST[currentSongIndex];
+      audio.src = song.src;
+
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          console.log("Playing auspicious wedding song:", song.title);
+          updateEqualizerUI(true);
+          showMusicNotification(song);
+        }).catch(err => {
+          console.log("Audio autoplay waiting for user tap:", err);
+          updateEqualizerUI(false);
+        });
+      }
     };
 
     window.playRandomWeddingSong = function() {
-      const nextIdx = getRandomSongIndex(currentSongIndex);
+      const nextIdx = (currentSongIndex === -1) 
+        ? getRandomSongIndex() 
+        : (currentSongIndex + 1) % WEDDING_PLAYLIST.length;
       window.playWeddingSongByIndex(nextIdx);
     };
 
     window.toggleWeddingAudio = function() {
-      if (!weddingAudio) {
+      const audio = initAudioEngine();
+      if (!audio.src || audio.src === "" || audio.src === window.location.href) {
         window.playRandomWeddingSong();
         return;
       }
-      if (weddingAudio.paused) {
-        weddingAudio.play().catch(() => window.playRandomWeddingSong());
+      if (audio.paused) {
+        audio.play().then(() => {
+          updateEqualizerUI(true);
+        }).catch(() => {
+          window.playRandomWeddingSong();
+        });
       } else {
-        weddingAudio.pause();
+        audio.pause();
+        updateEqualizerUI(false);
       }
     };
 
+    // Auto-unlock audio playback on first user gesture anywhere on screen
+    const unlockUserAudio = () => {
+      initAudioEngine();
+      document.removeEventListener('click', unlockUserAudio);
+      document.removeEventListener('touchstart', unlockUserAudio);
+    };
+    document.addEventListener('click', unlockUserAudio, { once: true });
+    document.addEventListener('touchstart', unlockUserAudio, { once: true });
 
     // OPEN INVITATION button click with smooth scroll & golden sparkle burst
     const openBtn = document.getElementById('open-invitation-btn');
